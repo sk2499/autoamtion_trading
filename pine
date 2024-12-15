@@ -1,0 +1,29 @@
+//@version=5
+strategy("Stochastic RSI Cross Strategy", overlay=true, calc_on_every_tick=true)
+
+// --- Inputs for Stochastic RSI ---
+lengthRSI = input.int(14, title="RSI Length")
+lengthStoch = input.int(14, title="Stochastic Length")
+k = input.int(3, title="%K")
+d = input.int(3, title="%D")
+
+// --- Stochastic RSI Calculation ---
+rsi = ta.rsi(close, lengthRSI)
+stochRsi = ta.stoch(rsi, rsi, rsi, lengthStoch)
+K = ta.sma(stochRsi, k)
+D = ta.sma(K, d)
+
+// --- Conditions for Buy and Sell ---
+buyCondition = ta.crossover(K, D)// and K < 20 and D <  20
+sellCondition = ta.crossunder(K, D) //and K > 80 and D > 80
+
+// --- Execute Orders and Alerts ---
+if buyCondition and barstate.isrealtime
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Buy", stop=close * 0.98, limit=close * 1.005)
+    //alert('{"action": "buy", "symbol": "{{ticker}}", "price": "{{close}}"}', alert.freq_all)
+
+if sellCondition and barstate.isrealtime
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", "Sell", stop=close * 1.02, limit=close * 0.995)
+    //alert('{"action": "sell", "symbol": "{{ticker}}", "price": "{{close}}"}', alert.freq_all)
