@@ -61,9 +61,9 @@ def webhook():
 
 
             if action == 'buy':
-                response = place_mt5_order(symbol=mt5_symbol, order_type=mt5.ORDER_TYPE_BUY_LIMIT, price=price,sl=sl_value,tp=None)
+                response = place_mt5_order(symbol=mt5_symbol, order_type=mt5.ORDER_TYPE_BUY, price=price,sl=sl_value,tp=None)
             elif action == 'sell':
-                response = place_mt5_order(symbol=mt5_symbol, order_type=mt5.ORDER_TYPE_SELL_LIMIT, price=price,sl=sl_value,tp=None)
+                response = place_mt5_order(symbol=mt5_symbol, order_type=mt5.ORDER_TYPE_SELL, price=price,sl=sl_value,tp=None)
             else:
                 print("Error: Invalid action")
                 return jsonify({"status": "error", "message": "Invalid action"}), 400
