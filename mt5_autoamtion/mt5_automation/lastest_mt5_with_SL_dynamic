@@ -61,9 +61,9 @@ def webhook():
 
 
             if action == 'buy':
-                response = place_mt5_order(mt5_symbol, mt5.ORDER_TYPE_BUY_LIMIT, price,sl=sl_value,tp=None)
+                response = place_mt5_order(symbol=mt5_symbol, order_type=mt5.ORDER_TYPE_BUY_LIMIT, price=price,sl=sl_value,tp=None)
             elif action == 'sell':
-                response = place_mt5_order(mt5_symbol, mt5.ORDER_TYPE_SELL_LIMIT, price,sl=sl_value,tp=None)
+                response = place_mt5_order(symbol=mt5_symbol, order_type=mt5.ORDER_TYPE_SELL_LIMIT, price=price,sl=sl_value,tp=None)
             else:
                 print("Error: Invalid action")
                 return jsonify({"status": "error", "message": "Invalid action"}), 400
@@ -129,7 +129,7 @@ def webhook():
 
 
 
-def place_mt5_order(symbol, order_type, price=None, sl=None, tp=None):
+def place_mt5_order(symbol, order_type, price, sl=None, tp=None):
     login_status = init_mt5()
     if "failed" in login_status:
         print(login_status)
@@ -144,7 +144,7 @@ def place_mt5_order(symbol, order_type, price=None, sl=None, tp=None):
         print(f"Failed to get tick data for {symbol}")
         return {"status": "error", "message": f"Failed to get tick data for {symbol}"}
 
-    price = tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid
+    #price = tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid
 
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
