@@ -45,6 +45,13 @@ def webhook():
         symbol = data.get('symbol',None)
         mt5_symbol = map_symbol(symbol)
         sl_value = float(data.get('sl_value', 0))
+        target_percentage = 0.0005  # .05
+
+        # Calculate target price based on order type
+        if action == 'buy':
+            tp = price * (1 + target_percentage)  # 2% above the price for buy
+        elif action == 'sell':
+            tp = price * (1 - target_percentage)  # 2% below the price for sell
 
 
         if action in ['buy', 'sell']:
@@ -57,14 +64,6 @@ def webhook():
             if not action or not symbol or not price:
                 print("Error: Missing required fields in payload")
                 return jsonify({"status": "error", "message": "Missing fields in payload"}), 400
-
-            target_percentage = 0.005  # 2%
-
-            # Calculate target price based on order type
-            if action == 'buy':
-                tp = price * (1 + target_percentage)  # 2% above the price for buy
-            elif action == 'sell':
-                tp = price * (1 - target_percentage)  # 2% below the price for sell
 
             # Place the MT5 order
             response = place_mt5_order(
@@ -120,6 +119,7 @@ def webhook():
                     "action": mt5.TRADE_ACTION_SLTP,
                     "symbol": mt5_symbol,
                     "sl": sl_value,
+                    "tp":tp,
                     "position": order_ticket,
                     "magic": 234000,
                     "comment": "Updated Stop Loss",
