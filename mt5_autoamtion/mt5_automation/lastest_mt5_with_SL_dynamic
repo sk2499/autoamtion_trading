@@ -45,19 +45,20 @@ def webhook():
         symbol = data.get('symbol',None)
         mt5_symbol = map_symbol(symbol)
         sl_value = float(data.get('sl_value', 0))
-        target_percentage = 0.0005  # .05
+      #  price = float(data.get('price'))
+      #  target_percentage = 0.0005  # .05
 
         # Calculate target price based on order type
-        if action == 'buy':
-            tp = price * (1 + target_percentage)  # 2% above the price for buy
-        elif action == 'sell':
-            tp = price * (1 - target_percentage)  # 2% below the price for sell
+        # if action == 'buy':
+        #     tp = price * (1 + target_percentage)  # 2% above the price for buy
+        # elif action == 'sell':
+        #     tp = price * (1 - target_percentage)  # 2% below the price for sell
 
 
         if action in ['buy', 'sell']:
             # Handle buy or sell order
             try:
-                price = float(data['price'])
+                price = float(data.get('price'))
             except ValueError:
                 return jsonify({"status": "error", "message": "Invalid price format"}), 400
 
@@ -71,7 +72,7 @@ def webhook():
                 order_type=mt5.ORDER_TYPE_BUY if action == 'buy' else mt5.ORDER_TYPE_SELL,
                 price=price,
                 sl=sl_value,
-                tp=tp
+                tp=None
             )
 
             if response["status"] == "success":
@@ -119,7 +120,6 @@ def webhook():
                     "action": mt5.TRADE_ACTION_SLTP,
                     "symbol": mt5_symbol,
                     "sl": sl_value,
-                    "tp":tp,
                     "position": order_ticket,
                     "magic": 234000,
                     "comment": "Updated Stop Loss",
