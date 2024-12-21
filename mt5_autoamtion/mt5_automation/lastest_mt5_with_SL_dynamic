@@ -1,14 +1,13 @@
 import MetaTrader5 as mt5
 from flask import Flask, request, jsonify, render_template_string
 
-
 app = Flask(__name__)
 
 # MT5 Login Credentials
 MT5_LOGIN = 190244904  # Replace with your MT5 account number
 MT5_PASSWORD = "Qwerty@2"  # Replace with your MT5 password
 MT5_SERVER = "Exness-MT5Trial14"  # Replace with your broker's server name
-active_orders = {}
+active_orders = {}  # Store active orders and metadata
 
 # Map received symbols to MT5-compatible symbols
 SYMBOL_MAP = {
@@ -42,14 +41,14 @@ def webhook():
             return jsonify({"status": "error", "message": "No JSON payload received"}), 400
 
         print("Received alert:", data)
-        symbol = data['symbol']
+        action = data['action'].lower()
+        symbol = data.get('symbol',None)
         mt5_symbol = map_symbol(symbol)
         sl_value = float(data.get('sl_value', 0))
-        action = data['action'].lower()
-
-        if action == 'buy' or action == 'sell':
 
 
+        if action in ['buy', 'sell']:
+            # Handle buy or sell order
             try:
                 price = float(data['price'])
             except ValueError:
@@ -59,77 +58,88 @@ def webhook():
                 print("Error: Missing required fields in payload")
                 return jsonify({"status": "error", "message": "Missing fields in payload"}), 400
 
+            target_percentage = 0.005  # 2%
 
+            # Calculate target price based on order type
             if action == 'buy':
-                response = place_mt5_order(symbol=mt5_symbol, order_type=mt5.ORDER_TYPE_BUY, price=price,sl=sl_value,tp=None)
+                tp = price * (1 + target_percentage)  # 2% above the price for buy
             elif action == 'sell':
-                response = place_mt5_order(symbol=mt5_symbol, order_type=mt5.ORDER_TYPE_SELL, price=price,sl=sl_value,tp=None)
-            else:
-                print("Error: Invalid action")
-                return jsonify({"status": "error", "message": "Invalid action"}), 400
+                tp = price * (1 - target_percentage)  # 2% below the price for sell
+
+            # Place the MT5 order
+            response = place_mt5_order(
+                symbol=mt5_symbol,
+                order_type=mt5.ORDER_TYPE_BUY if action == 'buy' else mt5.ORDER_TYPE_SELL,
+                price=price,
+                sl=sl_value,
+                tp=tp
+            )
 
             if response["status"] == "success":
                 order_ticket = response["order_ticket"]
-                active_orders[mt5_symbol] = order_ticket  # Store the order_ticket
-                print(order_ticket)
+                print('sl ticket')
+                active_orders[mt5_symbol] = {"ticket": order_ticket, "symbol": mt5_symbol}# Store metadata
                 print(active_orders)
+                print(f"Order placed. Ticket: {order_ticket}, Active Orders: {active_orders}")
                 return jsonify({"status": "success", "message": f"{action.capitalize()} order placed",
                                 "order_ticket": order_ticket}), 200
             else:
                 return jsonify({"status": "error", "message": response["message"]}), 500
-            #print('1')
-            # Return the response from the order placement
-            # if response["status"] == "success":
-            #     order_ticket = response["order_ticket"]  # Assuming you return the ticket from place_mt5_order
-            #     new_stop_loss = float(data['stoploss'])  # Extract SL from the webhook payload
-            #
-            #     # Update the SL
-            #     update_response = update_mt5_order_sl(order_ticket, new_stop_loss)
-            #     if update_response["status"] == "success":
-            #         return jsonify({"status": "success", "message": "Order placed and SL updated successfully"}), 200
-            #     else:
-            #         return jsonify({"status": "error", "message": update_response["message"]}), 500
 
-            # if response.retcode == mt5.TRADE_RETCODE_DONE:
-            #     order_ticket = response.order
-            #     return jsonify({"message": "Initial order placed", "order_ticket": order_ticket})
+        elif action == "update_sl":
+            # # If symbol is not provided, attempt to infer it
+            # order_ticket = data.get("order_ticket")
+            # print('a')
+            # print(order_ticket)# Assuming ticket is passed instead of symbol
+            # if order_ticket:
+            #     # Find the symbol by matching the ticket in active_orders
+            #     mt5_symbol = next(
+            #         (key for key, value in active_orders.items() if value["ticket"] == order_ticket),
+            #         None
+            #     )
             # else:
-            #     return jsonify({"error": "Order placement failed", "details": response})
+            #     mt5_symbol = None
+            #
+            # if not mt5_symbol:
+            #     print("Error: Unable to determine symbol from alert or active orders")
+            #     return jsonify({"error": "No symbol or matching ticket found"}), 404
 
+            # Proceed with the rest of the update logic
+            mt5_symbol = 'BTCUSDm'
+            order_data = active_orders.get(mt5_symbol)
+            if not order_data:
+                print(f"No active order found for symbol: {mt5_symbol}")
+                return jsonify({"error": "No active order found to update SL"}), 404
 
-        elif action == "update_sl": #and order_ticket is not None:
-            # Modify stop loss of the active order
-            symbol = 'USTECm'
-            order_ticket = active_orders.get(symbol)
-            print(order_ticket)
+            order_ticket = order_data.get("ticket")
+            print(f"Updating SL for ticket: {order_ticket}, Symbol: {mt5_symbol}")
+
             position = mt5.positions_get(ticket=order_ticket)
             if position:
                 req = {
                     "action": mt5.TRADE_ACTION_SLTP,
-                    "symbol": symbol,
+                    "symbol": mt5_symbol,
                     "sl": sl_value,
                     "position": order_ticket,
                     "magic": 234000,
                     "comment": "Updated Stop Loss",
                 }
                 result = mt5.order_send(req)
-                print(result)
+                print(f"SL Update Result: {result}")
                 if result.retcode == mt5.TRADE_RETCODE_DONE:
-                    return jsonify({"message": "Stop loss updated", "order_ticket": order_ticket})
+                    return jsonify({"message": "Stop loss updated", "order_ticket": order_ticket}), 200
                 else:
-                    return jsonify({"error": "Failed to update stop loss", "details": result})
+                    return jsonify({"error": "Failed to update stop loss", "details": result}), 500
             else:
-                return jsonify({"error": "Order not found"})
-        else:
-            return jsonify({"error": "Invalid request or no active order"})
+                return jsonify({"error": "Position not found for update_sl"}), 404
 
     except Exception as e:
         print(f"Error processing webhook: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-
 def place_mt5_order(symbol, order_type, price, sl=None, tp=None):
+    """Place an order in MT5."""
     login_status = init_mt5()
     if "failed" in login_status:
         print(login_status)
@@ -144,12 +154,10 @@ def place_mt5_order(symbol, order_type, price, sl=None, tp=None):
         print(f"Failed to get tick data for {symbol}")
         return {"status": "error", "message": f"Failed to get tick data for {symbol}"}
 
-    #price = tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid
-
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
-        "volume": 0.1,
+        "volume": 0.01,
         "type": order_type,
         "price": price,
         "sl": sl or 0.0,
@@ -170,24 +178,9 @@ def place_mt5_order(symbol, order_type, price, sl=None, tp=None):
         return {"status": "success", "message": "Order placed successfully", "order_ticket": result.order}
 
 
-# def update_mt5_order_sl(order_ticket, new_sl):
-#     request = {
-#         "action": mt5.TRADE_ACTION_SLTP,
-#         "position": order_ticket,
-#         "sl": new_sl,
-#     }
-#     result = mt5.order_send(request)
-#
-#     if result.retcode == mt5.TRADE_RETCODE_DONE:
-#         print(f"SL updated for order {order_ticket}")
-#         return {"status": "success", "message": "Stop Loss updated successfully"}
-#     else:
-#         print(f"Failed to update SL for order {order_ticket}, Error: {result.comment}")
-#         return {"status": "error", "message": f"Failed to update SL: {result.comment}"}
-
-# New Route for Logging in and Fetching Balance
 @app.route('/login_balance', methods=['GET'])
 def login_balance():
+    """Login and fetch balance information."""
     login_status = init_mt5()
 
     if "failed" in login_status:
@@ -197,7 +190,6 @@ def login_balance():
     if account_info is None:
         return "<h1>Login failed, check credentials</h1>"
 
-    # Render the account balance
     return render_template_string(
         """
         <h1>MT5 Account Balance</h1>
@@ -210,6 +202,7 @@ def login_balance():
         """,
         account_info=account_info
     )
+
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
