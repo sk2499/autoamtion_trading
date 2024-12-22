@@ -45,22 +45,17 @@ def webhook():
         symbol = data.get('symbol',None)
         mt5_symbol = map_symbol(symbol)
         sl_value = float(data.get('sl_value', 0))
-      #  price = float(data.get('price'))
-      #  target_percentage = 0.0005  # .05
+        price = float(data.get('price',0))
+        target_percentage = 0.0009  # .009
 
         # Calculate target price based on order type
-        # if action == 'buy':
-        #     tp = price * (1 + target_percentage)  # 2% above the price for buy
-        # elif action == 'sell':
-        #     tp = price * (1 - target_percentage)  # 2% below the price for sell
-
+        if action == 'buy':
+            tp = price * (1 + target_percentage)  # 2% above the price for buy
+        elif action == 'sell':
+            tp = price * (1 - target_percentage)  # 2% below the price for sell
 
         if action in ['buy', 'sell']:
             # Handle buy or sell order
-            try:
-                price = float(data.get('price'))
-            except ValueError:
-                return jsonify({"status": "error", "message": "Invalid price format"}), 400
 
             if not action or not symbol or not price:
                 print("Error: Missing required fields in payload")
@@ -72,29 +67,30 @@ def webhook():
                 order_type=mt5.ORDER_TYPE_BUY if action == 'buy' else mt5.ORDER_TYPE_SELL,
                 price=price,
                 sl=sl_value,
-                tp=None
+                tp=tp
             )
 
             if response["status"] == "success":
                 order_ticket = response["order_ticket"]
+                target_price = response['tp']
                 print('sl ticket')
-                active_orders[mt5_symbol] = {"ticket": order_ticket, "symbol": mt5_symbol}# Store metadata
+                active_orders[mt5_symbol] = {"ticket": order_ticket, "symbol": mt5_symbol,"tp": target_price}
                 print(active_orders)
-                print(f"Order placed. Ticket: {order_ticket}, Active Orders: {active_orders}")
+                print(f"Order placed. Ticket: {order_ticket}, Target: {target_price}, Active Orders: {active_orders}")
                 return jsonify({"status": "success", "message": f"{action.capitalize()} order placed",
-                                "order_ticket": order_ticket}), 200
+                                "order_ticket": order_ticket,"target_price": target_price,}), 200
             else:
                 return jsonify({"status": "error", "message": response["message"]}), 500
 
         elif action == "update_sl":
-            # # If symbol is not provided, attempt to infer it
-            # order_ticket = data.get("order_ticket")
-            # print('a')
-            # print(order_ticket)# Assuming ticket is passed instead of symbol
+            # order_ticket = order_data.get("order_ticket")
+            # print("Received order_ticket:", order_ticket)
+            # print("Current active_orders:", active_orders)
+
             # if order_ticket:
-            #     # Find the symbol by matching the ticket in active_orders
+            #     # Attempt to find the matching symbol
             #     mt5_symbol = next(
-            #         (key for key, value in active_orders.items() if value["ticket"] == order_ticket),
+            #         (key for key, value in active_orders.items() if value["ticket"] == int(order_ticket)),
             #         None
             #     )
             # else:
@@ -112,6 +108,11 @@ def webhook():
                 return jsonify({"error": "No active order found to update SL"}), 404
 
             order_ticket = order_data.get("ticket")
+            target_price = order_data.get("tp")
+            if target_price is None:
+                print(f"Error: Target price not found for active order of symbol: {mt5_symbol}")
+                return jsonify({"error": "Target price not found"}), 500
+
             print(f"Updating SL for ticket: {order_ticket}, Symbol: {mt5_symbol}")
 
             position = mt5.positions_get(ticket=order_ticket)
@@ -120,11 +121,13 @@ def webhook():
                     "action": mt5.TRADE_ACTION_SLTP,
                     "symbol": mt5_symbol,
                     "sl": sl_value,
+                    "tp": target_price,
                     "position": order_ticket,
                     "magic": 234000,
                     "comment": "Updated Stop Loss",
                 }
                 result = mt5.order_send(req)
+                print(result)
                 print(f"SL Update Result: {result}")
                 if result.retcode == mt5.TRADE_RETCODE_DONE:
                     return jsonify({"message": "Stop loss updated", "order_ticket": order_ticket}), 200
@@ -157,7 +160,7 @@ def place_mt5_order(symbol, order_type, price, sl=None, tp=None):
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
-        "volume": 0.01,
+        "volume": 0.05,
         "type": order_type,
         "price": price,
         "sl": sl or 0.0,
@@ -175,7 +178,7 @@ def place_mt5_order(symbol, order_type, price, sl=None, tp=None):
         return {"status": "error", "message": f"Order failed: {result.comment}"}
     else:
         print("Order placed successfully")
-        return {"status": "success", "message": "Order placed successfully", "order_ticket": result.order}
+        return {"status": "success", "message": "Order placed successfully", "order_ticket": result.order,"tp": tp,}
 
 
 @app.route('/login_balance', methods=['GET'])
