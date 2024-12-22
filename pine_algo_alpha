@@ -168,10 +168,10 @@ bullishSL = close > ST ? ST : na
 bearishSL = close < ST ? ST : na
 
 // Alert Conditions (constant strings)
-alertcondition(ta.crossunder(dir, 0) and (cluster == 0 or cluster == 1) and barstate.isconfirmed and close > ST, 
+alertcondition(ta.crossunder(dir, 0) and barstate.isconfirmed and close > ST, //and (cluster == 0 or cluster == 1 or cluster == 2), 
                "Bullish Trend with High or Medium Volatility")
 
-alertcondition(ta.crossover(dir, 0) and (cluster == 0 or cluster == 1) and barstate.isconfirmed and close < ST, 
+alertcondition(ta.crossover(dir, 0) and barstate.isconfirmed and close < ST, //and (cluster == 0 or cluster == 1 or cluster == 2), 
                "Bearish Trend with High or Medium Volatility")
 
 // Trigger Alerts with Dynamic SL
