@@ -101,7 +101,6 @@ def webhook():
             #     return jsonify({"error": "No symbol or matching ticket found"}), 404
 
             # Proceed with the rest of the update logic
-            mt5_symbol = 'BTCUSDm'
             order_data = active_orders.get(mt5_symbol)
             if not order_data:
                 print(f"No active order found for symbol: {mt5_symbol}")
@@ -160,7 +159,7 @@ def place_mt5_order(symbol, order_type, price, sl=None, tp=None):
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
-        "volume": 0.09,
+        "volume": 0.5,
         "type": order_type,
         "price": price,
         "sl": sl or 0.0,
