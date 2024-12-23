@@ -179,8 +179,8 @@ alertcondition(ta.crossover(dir, 0) and barstate.isconfirmed and close < ST, //a
 if (cluster == 0 or cluster == 1 or cluster == 2) and barstate.isconfirmed
     if close > ST
         // Bullish Alert
-        alert('{ "action": "update_sl", "sl_value": "' + str.tostring(bullishSL) + '" }', alert.freq_all)
+        alert('{ "action": "update_sl", "symbol": "NAS100", "sl_value": "' + str.tostring(bullishSL) + '" }', alert.freq_all)
         
     if close < ST
         // Bearish Alert
-        alert('{ "action": "update_sl", "sl_value": "' + str.tostring(bearishSL) + '" }', alert.freq_all)
+        alert('{ "action": "update_sl", "symbol": "NAS100", "sl_value": "' + str.tostring(bearishSL) + '" }', alert.freq_all)
