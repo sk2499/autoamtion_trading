@@ -4,9 +4,9 @@ from flask import Flask, request, jsonify, render_template_string
 app = Flask(__name__)
 
 # MT5 Login Credentials
-MT5_LOGIN = 190244904  # Replace with your MT5 account number
-MT5_PASSWORD = "Qwerty@2"  # Replace with your MT5 password
-MT5_SERVER = "Exness-MT5Trial14"  # Replace with your broker's server name
+# MT5_LOGIN = 190244904#90232  # Replace with your MT5 account number
+# MT5_PASSWORD = "Qwerty@2"#"Yogesh@123"  # Replace with your MT5 password
+# MT5_SERVER = "Exness-MT5Trial14"#"7StreetCorporation-Server"  # Replace with your broker's server name
 active_orders = {}  # Store active orders and metadata
 
 # Map received symbols to MT5-compatible symbols
@@ -16,19 +16,71 @@ SYMBOL_MAP = {
     # Add more mappings as needed
 }
 
+MT5_ACCOUNTS = {
+    "Account 1_sashank": {"login": 190244904, "password": "Qwerty@2", "server": "Exness-MT5Trial14"},
+    "Account 2_yogesh": {"login": 90232, "password": "Yogesh@123", "server": "7StreetCorporation-Server"},
+}
+
+selected_account = None  # Variable to store the currently selected account
+
 def map_symbol(webhook_symbol):
     """Convert TradingView symbol to MT5 symbol using the mapping."""
     return SYMBOL_MAP.get(webhook_symbol, webhook_symbol)  # Default to the same symbol if no mapping exists
 
 # Initialize and login to MT5
 def init_mt5():
+    if not selected_account:
+        return "No account selected"
+
     if not mt5.initialize():
         return "MT5 Initialization failed"
 
-    authorized = mt5.login(MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER)
+    account = MT5_ACCOUNTS[selected_account]
+    authorized = mt5.login(
+        account["login"],
+        password=account["password"],
+        server=account["server"]
+    )
+    print(authorized)
     if not authorized:
         return f"MT5 Login failed: {mt5.last_error()}"
     return "MT5 Login successful"
+
+@app.route('/username', methods=['GET', 'POST'])
+def select_username():
+    global selected_account
+
+    if request.method == 'POST':
+        # Get the selected account from the form
+        selected_account = request.form.get('account')
+        if selected_account in MT5_ACCOUNTS:
+            return render_template_string(
+                """
+                <h1>Selected Account: {{ selected_account }}</h1>
+                <p>Account {{ selected_account }} is now active. You can proceed to other operations.</p>
+                <a href="/">Go back to the main menu</a>
+                """,
+                selected_account=selected_account
+            )
+        else:
+            return "Invalid account selected", 400
+
+    # Render the dropdown form
+    return render_template_string(
+        """
+        <h1>Select MT5 Account</h1>
+        <form method="post">
+            <label for="account">Choose an account:</label>
+            <select name="account" id="account">
+                {% for account in accounts %}
+                <option value="{{ account }}">{{ account }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Select</button>
+        </form>
+        """,
+        accounts=MT5_ACCOUNTS.keys()
+    )
 
 
 @app.route('/webhook', methods=['POST'])
@@ -46,7 +98,7 @@ def webhook():
         mt5_symbol = map_symbol(symbol)
         sl_value = float(data.get('sl_value', 0))
         price = float(data.get('price',0))
-        target_percentage = 0.0015  # .15%
+        target_percentage = 0.0030  # .15%
 
         # Calculate target price based on order type
         if action == 'buy':
@@ -159,12 +211,12 @@ def place_mt5_order(symbol, order_type, price, sl=None, tp=None):
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
-        "volume": 0.5,
+        "volume": 0.25,
         "type": order_type,
         "price": price,
         "sl": sl or 0.0,
         "tp": tp or 0.0,
-        "deviation": 20,
+        "deviation": 1,
         "magic": 234000,
         "comment": "TradingView Alert",
         "type_filling": mt5.ORDER_FILLING_IOC,
